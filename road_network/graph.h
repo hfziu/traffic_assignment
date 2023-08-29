@@ -5,9 +5,13 @@
 #ifndef TRAFFIC_ASSIGNMENT_ROAD_NETWORK_GRAPH_H_
 #define TRAFFIC_ASSIGNMENT_ROAD_NETWORK_GRAPH_H_
 
+#include <Eigen/Dense>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "road_network/format.h"
 #include "road_network/matrix.h"
@@ -15,9 +19,9 @@
 namespace road_network {
 
 struct Node {
-  Node(int id, std::string name) : id_(id), name_(std::move(name)) {}
-  const int id_;  // internal node ID
-  const std::string name_;
+  Node(NodeID id, NodeName name) : id_(id), name_(std::move(name)) {}
+  const NodeID id_;  // internal node ID
+  const NodeName name_;
 };
 
 class Link {
@@ -36,8 +40,8 @@ class Link {
  public:
   Link() = default;
   ~Link() = default;
-  Link(std::shared_ptr<Node> from, std::shared_ptr<Node> to, double capacity,
-       double free_speed, double length, int lanes, int link_type,
+  Link(NodePtr from, NodePtr to, double capacity, double free_speed,
+       double length, int lanes, int link_type,
        LinkPerformanceFunction link_performance_function)
       : from_(std::move(from)),
         to_(std::move(to)),
@@ -71,7 +75,14 @@ class Graph {
   // the graph.
   // TODO: support dynamic graph.
   explicit Graph(int n_nodes)
-      : adjacency_matrix_(Matrix<Link>(n_nodes, n_nodes)) {}
+      : n_nodes_(n_nodes),
+        adjacency_matrix_(Matrix<std::optional<Link>>(n_nodes, n_nodes)) {
+    // resize the internal matrices
+    demands_.resize(n_nodes, n_nodes);
+    link_flows_.resize(n_nodes, n_nodes);
+    link_costs_.resize(n_nodes, n_nodes);
+    shortest_path_.Resize(n_nodes, n_nodes);
+  }
   ~Graph() = default;
 
   // Currently, a Graph object is not copyable or movable.
@@ -81,36 +92,57 @@ class Graph {
   Graph(Graph&& other) noexcept = delete;
   Graph& operator=(Graph&& other) noexcept = delete;
 
-  bool AddLink(const std::string& from, const std::string& to, double capacity,
+  bool AddLink(const NodeName& from, const NodeName& to, double capacity,
                double free_speed, double length, int lanes, int link_type,
                LinkPerformanceFunction f);
 
-  // Get Link object by node names.
-  Link& GetLink(const std::string&& from, const std::string&& to);
+  bool AddDemand(const NodeName& from, const NodeName& to, double demand);
 
-  // Get Node internal ID by node name.
-  int GetNodeId(const std::string& name) const {
-    return node_id_map_.at(name).first;
+  // Get Link object by node names.
+  const std::optional<Link>& GetLink(const NodeName& from, const NodeName& to);
+
+  // Get Node by node name.
+  std::shared_ptr<Node> GetNode(const NodeName& name) {
+    return node_id_map_[name].second;
   }
+
+ public:
+  // update the shortest path matrix for origin node r using Dijkstra's
+  // algorithm
+  // TODO: these functions should be private
+  void UpdateSingleLinkFlow(NodeName from, NodeName to, double flow);
+  void UpdateLinkCosts();
+  void UpdateShortestPath(NodeID r);
+  void UpdateShortestPathAll();
+  // DEBUG
+  Eigen::MatrixXd& GetLinkFlows() { return link_flows_; }
+  Eigen::MatrixXd& GetLinkCosts() { return link_costs_; }
+  void PrintLinks();
 
  private:
-  bool AddLinkInternal(const std::shared_ptr<Node>& from,
-                       const std::shared_ptr<Node>& to, double capacity,
+  // returns true if the node is successfully created or already exists.
+  [[nodiscard]] bool MakeNode(const std::string& name);
+
+  // returns true if the link is successfully created.
+  bool AddLinkInternal(const NodePtr& from, const NodePtr& to, double capacity,
                        double free_speed, double length, int lanes,
-                       int link_type, LinkPerformanceFunction f) {
-    adjacency_matrix_(from->id_, to->id_) =
-        std::move(Link(from, to, capacity, free_speed, length, lanes, link_type,
-                       std::move(f)));
-    return true;
-  }
+                       int link_type, LinkPerformanceFunction f);
 
  private:
   // Each node is allowed to have a name of string type.
   // When a node is created, it is assigned an internal integer ID.
-  std::unordered_map<std::string, std::pair<int, std::shared_ptr<Node>>>
-      node_id_map_{};
-  int node_id_counter_{};  // max node ID + 1
-  Matrix<Link> adjacency_matrix_{};
+  std::unordered_map<NodeName, std::pair<NodeID, NodePtr>> node_id_map_{};
+  std::unordered_map<NodeID, std::pair<NodeName, NodePtr>>
+      node_id_reverse_map_{};
+  NodeID node_id_counter_{};  // current max node ID + 1
+  NodeID n_nodes_{};          // max number of nodes
+  Matrix<std::optional<Link>> adjacency_matrix_{};
+  Eigen::MatrixXd demands_;
+
+  // Temporary variables for traffic assignment
+  Eigen::MatrixXd link_flows_{};
+  Eigen::MatrixXd link_costs_{};
+  Matrix<std::pair<double, std::vector<NodeID>>> shortest_path_{};
 };
 
 }  // namespace road_network

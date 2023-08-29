@@ -1,6 +1,7 @@
 //
 // Created by Xiaofei ZHAO on 29/8/2023.
 //
+// Define custom link performance functions.
 
 #ifndef TRAFFIC_ASSIGNMENT_ROAD_NETWORK_LINK_PERFORMANCE_H_
 #define TRAFFIC_ASSIGNMENT_ROAD_NETWORK_LINK_PERFORMANCE_H_

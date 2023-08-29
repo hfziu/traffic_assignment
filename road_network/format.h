@@ -9,6 +9,11 @@
 
 namespace road_network {
 
+struct Node;
+
+using NodeID = int;
+using NodeName = std::string;
+using NodePtr = std::shared_ptr<Node>;
 using LinkPerformanceFunction = std::function<double(double)>;
 
 }  // namespace road_network

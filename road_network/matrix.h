@@ -15,14 +15,23 @@ class Matrix {
   Matrix() = default;
   ~Matrix() = default;
 
-  Matrix(int row, int col) { data_.resize(row * col); }
+  Matrix(int row, int col) { Resize(row, col); }
 
   // move constructor
   Matrix(Matrix&& other) noexcept : data_(std::move(other.data_)) {}
 
-  T& operator()(int row, int col) { return data_[row * col + col]; }
+  T& operator()(int row, int col) { return data_[row * n_col_ + col]; }
+
+  void Resize(int row, int col) {
+    n_row_ = row;
+    n_col_ = col;
+    data_.resize(n_row_ * n_col_);
+  }
+
+  void Clear() { data_.clear(); }
 
  private:
+  int n_row_{}, n_col_{};
   std::vector<T> data_{};
 };  // class Matrix
 

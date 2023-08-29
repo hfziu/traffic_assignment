@@ -22,6 +22,7 @@ target_sources(traffic_assignment
     "road_network/link_performance.h"
     "road_network/matrix.h"
 )
+target_link_libraries(traffic_assignment Eigen3::Eigen)
 
 # TEST
 # this project uses GoogleTest
@@ -41,6 +42,6 @@ function(ta_test test_file)
   add_test(NAME "${test_target_name}" COMMAND "${test_target_name}")
 endfunction()
 
-ta_test("main_test.cc")
-target_link_libraries(main_test Eigen3::Eigen)
+ta_test("eigen_test.cc")
+target_link_libraries(eigen_test Eigen3::Eigen)
 ta_test("road_network/graph_test.cc")
