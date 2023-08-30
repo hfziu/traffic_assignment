@@ -7,6 +7,7 @@
 
 #include <Eigen/Dense>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -78,8 +79,8 @@ class Graph {
       : n_nodes_(n_nodes),
         adjacency_matrix_(Matrix<std::optional<Link>>(n_nodes, n_nodes)) {
     // resize the internal matrices
-    demands_.resize(n_nodes, n_nodes);
     link_flows_.resize(n_nodes, n_nodes);
+    target_link_flows_.resize(n_nodes, n_nodes);
     link_costs_.resize(n_nodes, n_nodes);
     shortest_path_.Resize(n_nodes, n_nodes);
   }
@@ -101,7 +102,7 @@ class Graph {
   // Get Link object by node names.
   const std::optional<Link>& GetLink(const NodeName& from, const NodeName& to);
 
-  // Get Node by node name.
+  // Get a Node pointer by node name.
   std::shared_ptr<Node> GetNode(const NodeName& name) {
     return node_id_map_[name].second;
   }
@@ -110,14 +111,17 @@ class Graph {
   // update the shortest path matrix for origin node r using Dijkstra's
   // algorithm
   // TODO: these functions should be private
-  void UpdateSingleLinkFlow(NodeName from, NodeName to, double flow);
+  void UpdateSingleLinkFlow(const NodeName& from, const NodeName& to,
+                            double flow);
   void UpdateLinkCosts();
-  void UpdateShortestPath(NodeID r);
-  void UpdateShortestPathAll();
   // DEBUG
   Eigen::MatrixXd& GetLinkFlows() { return link_flows_; }
   Eigen::MatrixXd& GetLinkCosts() { return link_costs_; }
   void PrintLinks();
+  void PrintShortestPath();
+
+  friend class Assignment;
+  friend class MSA;
 
  private:
   // returns true if the node is successfully created or already exists.
@@ -128,6 +132,11 @@ class Graph {
                        double free_speed, double length, int lanes,
                        int link_type, LinkPerformanceFunction f);
 
+ public:
+  void UpdateShortestPath(NodeID r);
+  void UpdateShortestPathMany(const NodeSet& r_set);
+  double ComputeAEC();
+
  private:
   // Each node is allowed to have a name of string type.
   // When a node is created, it is assigned an internal integer ID.
@@ -137,11 +146,13 @@ class Graph {
   NodeID node_id_counter_{};  // current max node ID + 1
   NodeID n_nodes_{};          // max number of nodes
   Matrix<std::optional<Link>> adjacency_matrix_{};
-  Eigen::MatrixXd demands_;
-
+  // The demand matrix is represented as a map from origin node ID to a map from
+  // destination node ID to demand.
+  std::map<NodeID, std::map<NodeID, double>> demands_{};
   // Temporary variables for traffic assignment
-  Eigen::MatrixXd link_flows_{};
-  Eigen::MatrixXd link_costs_{};
+  Eigen::MatrixXd link_flows_{};  // initialized to zero
+  Eigen::MatrixXd target_link_flows_{};
+  Eigen::MatrixXd link_costs_{};  // updated by UpdateLinkCosts()
   Matrix<std::pair<double, std::vector<NodeID>>> shortest_path_{};
 };
 

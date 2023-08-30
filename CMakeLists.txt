@@ -16,6 +16,8 @@ include_directories(
 add_library(traffic_assignment)
 target_sources(traffic_assignment
     PRIVATE
+    "road_network/assignment.cc"
+    "road_network/assignment.h"
     "road_network/format.h"
     "road_network/graph.cc"
     "road_network/graph.h"

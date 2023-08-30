@@ -6,12 +6,14 @@
 #define TRAFFIC_ASSIGNMENT_ROAD_NETWORK_FORMAT_H_
 
 #include <functional>
+#include <set>
 
 namespace road_network {
 
 struct Node;
 
 using NodeID = int;
+using NodeSet = std::set<NodeID>;  // a set of node internal IDs
 using NodeName = std::string;
 using NodePtr = std::shared_ptr<Node>;
 using LinkPerformanceFunction = std::function<double(double)>;
