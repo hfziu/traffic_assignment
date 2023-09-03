@@ -3,6 +3,7 @@
 //
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 #include <gtest/gtest.h>
 
@@ -23,4 +24,19 @@ TEST(EigenTest, BasicMatrixOperations) {
   m(1,1) = m(1,0) + m(0,1);
   std::cout << m << std::endl;
   ASSERT_EQ(m(1,1), 1.5);
+}
+
+// Sparse matrix example.
+TEST(EigenTest, SparseMatrix) {
+  Eigen::SparseMatrix<double> m(3,3);
+  m.insert(0,0) = 3;
+  m.insert(1,0) = 2.5;
+  m.insert(0,1) = -1;
+  m.insert(1,1) = m.coeff(1,0) + m.coeff(0,1);
+  m.coeffRef(2,1) = 0.0;
+  std::cout << m << std::endl;
+  ASSERT_EQ(m.coeff(1,1), 1.5);
+  std::cout << m.coeff(2,1) << std::endl;
+  // What if we print an implicitly zero element?
+  std::cout << m.coeff(2,2) << std::endl;
 }

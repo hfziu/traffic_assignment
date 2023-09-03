@@ -5,7 +5,6 @@
 #ifndef TRAFFIC_ASSIGNMENT_ROAD_NETWORK_GRAPH_H_
 #define TRAFFIC_ASSIGNMENT_ROAD_NETWORK_GRAPH_H_
 
-#include <Eigen/Dense>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -27,8 +26,8 @@ struct Node {
 
 class Link {
  private:
-  std::shared_ptr<Node> from_;
-  std::shared_ptr<Node> to_;
+  NodePtr from_;
+  NodePtr to_;
 
   double capacity_{};
   double free_speed_{};
@@ -36,27 +35,27 @@ class Link {
   int lanes_{};
   int link_type_{};
 
-  std::function<double(double)> link_performance_function_{};
+  LinkPerformanceFunction link_performance_function_{};
 
  public:
   Link() = default;
   ~Link() = default;
-  Link(NodePtr from, NodePtr to, double capacity, double free_speed,
-       double length, int lanes, int link_type,
+  Link(NodePtr from, NodePtr to, double capacity, double length,
+       double free_speed, int lanes, int link_type,
        LinkPerformanceFunction link_performance_function)
       : from_(std::move(from)),
         to_(std::move(to)),
         capacity_(capacity),
-        free_speed_(free_speed),
         length_(length),
+        free_speed_(free_speed),
         lanes_(lanes),
         link_type_(link_type),
         link_performance_function_(std::move(link_performance_function)) {}
 
   // copy constructor
-  Link(const Link& other) = delete;
+  Link(const Link& other) = default;
   // copy assignment operator
-  Link& operator=(const Link& other) = delete;
+  Link& operator=(const Link& other);
   // move constructor
   Link(Link&& other) noexcept;
   // move assignment operator
@@ -77,12 +76,12 @@ class Graph {
   // TODO: support dynamic graph.
   explicit Graph(int n_nodes)
       : n_nodes_(n_nodes),
-        adjacency_matrix_(Matrix<std::optional<Link>>(n_nodes, n_nodes)) {
+        links_(n_nodes, n_nodes),
+        shortest_path_(n_nodes, n_nodes),
+        link_costs_(n_nodes, n_nodes, std::numeric_limits<double>::max()) {
     // resize the internal matrices
     link_flows_.resize(n_nodes, n_nodes);
     target_link_flows_.resize(n_nodes, n_nodes);
-    link_costs_.resize(n_nodes, n_nodes);
-    shortest_path_.Resize(n_nodes, n_nodes);
   }
   ~Graph() = default;
 
@@ -94,17 +93,23 @@ class Graph {
   Graph& operator=(Graph&& other) noexcept = delete;
 
   bool AddLink(const NodeName& from, const NodeName& to, double capacity,
-               double free_speed, double length, int lanes, int link_type,
+               double length, double free_speed, int lanes, int link_type,
                LinkPerformanceFunction f);
 
   bool AddDemand(const NodeName& from, const NodeName& to, double demand);
 
-  // Get Link object by node names.
-  const std::optional<Link>& GetLink(const NodeName& from, const NodeName& to);
-
   // Get a Node pointer by node name.
   std::shared_ptr<Node> GetNode(const NodeName& name) {
     return node_id_map_[name].second;
+  }
+
+  // Get a Link pointer by node names.
+  const Link& GetLink(const NodeName& from, const NodeName& to) {
+    return links_.at(node_id_map_[from].first, node_id_map_[to].first);
+  }
+  // Get demand between two nodes by node names.
+  double GetDemand(const NodeName& from, const NodeName& to) {
+    return demands_[node_id_map_[from].first][node_id_map_[to].first];
   }
 
  public:
@@ -115,8 +120,7 @@ class Graph {
                             double flow);
   void UpdateLinkCosts();
   // DEBUG
-  Eigen::MatrixXd& GetLinkFlows() { return link_flows_; }
-  Eigen::MatrixXd& GetLinkCosts() { return link_costs_; }
+  LinkFlowMatrix& GetLinkFlows() { return link_flows_; }
   void PrintLinks();
   void PrintShortestPath();
 
@@ -125,11 +129,11 @@ class Graph {
 
  private:
   // returns true if the node is successfully created or already exists.
-  [[nodiscard]] bool MakeNode(const std::string& name);
+  [[nodiscard]] bool MakeNode(const NodeName& name);
 
   // returns true if the link is successfully created.
   bool AddLinkInternal(const NodePtr& from, const NodePtr& to, double capacity,
-                       double free_speed, double length, int lanes,
+                       double length, double free_speed, int lanes,
                        int link_type, LinkPerformanceFunction f);
 
  public:
@@ -145,15 +149,15 @@ class Graph {
       node_id_reverse_map_{};
   NodeID node_id_counter_{};  // current max node ID + 1
   NodeID n_nodes_{};          // max number of nodes
-  Matrix<std::optional<Link>> adjacency_matrix_{};
+  SparseMatrix<Link> links_;
   // The demand matrix is represented as a map from origin node ID to a map from
   // destination node ID to demand.
   std::map<NodeID, std::map<NodeID, double>> demands_{};
   // Temporary variables for traffic assignment
-  Eigen::MatrixXd link_flows_{};  // initialized to zero
-  Eigen::MatrixXd target_link_flows_{};
-  Eigen::MatrixXd link_costs_{};  // updated by UpdateLinkCosts()
-  Matrix<std::pair<double, std::vector<NodeID>>> shortest_path_{};
+  LinkFlowMatrix link_flows_{};  // initialized to zero
+  LinkFlowMatrix target_link_flows_{};
+  SparseMatrixArithmetic<double> link_costs_;  // updated by UpdateLinkCosts()
+  SparseMatrix<std::pair<double, std::vector<NodeID>>> shortest_path_;
 };
 
 }  // namespace road_network

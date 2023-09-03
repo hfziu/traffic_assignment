@@ -4,9 +4,13 @@
 
 #include "road_network/assignment.h"
 
+#include <chrono>
+
 namespace road_network {
 
 void MSA::Solve(Graph& graph, int max_iter, double eps) {
+  // Timer
+  auto start = std::chrono::steady_clock::now();
   // initialize the origin nodes from demand matrix
   NodeSet origins{};
   for (const auto& [k, v] : graph.demands_) {
@@ -20,25 +24,33 @@ void MSA::Solve(Graph& graph, int max_iter, double eps) {
   double aec = std::numeric_limits<double>::max();
   AssignAON(graph);  // result is saved in graph.target_link_flows_.
   graph.link_flows_ = graph.target_link_flows_;
+#ifndef NDEBUG
+  std::cout << graph.link_flows_ << std::endl;
+  std::cout << graph.link_costs_.at(0, 3) << std::endl;
+#endif
   int iter = 1;
 
   while (iter < max_iter) {
     graph.UpdateLinkCosts();
     graph.UpdateShortestPathMany(origins);
     aec = graph.ComputeAEC();
+    std::cout << "Iteration " << iter << ": AEC = " << aec << " | ";
+    auto end = std::chrono::steady_clock::now();
+    std::cout
+        << "Time elapsed: "
+        << std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
+        << " sec" << std::endl;
+    start = end;
 #ifndef NDEBUG
     if (iter < 10 || iter % 10 == 0) {
-      std::cout << "Iteration " << iter << ": AEC = " << aec << std::endl;
       // link travel time
       std::cout << "Link travel time: ";
       std::cout << "t = [ ";
-      for (int i = 0; i < graph.n_nodes_; ++i) {
-        for (int j = 0; j < graph.n_nodes_; ++j) {
-          if (graph.adjacency_matrix_(i, j).has_value()) {
-            std::cout << graph.adjacency_matrix_(i, j)->TravelTime(
-                             graph.link_flows_(i, j))
-                      << " ";
-          }
+      for (auto& from_node : graph.links_) {
+        for (auto& link : from_node.second) {
+          std::cout << link.second.TravelTime(
+                           graph.link_flows_.coeff(from_node.first, link.first))
+                    << " ";
         }
       }
       std::cout << "]" << std::endl;
@@ -66,7 +78,7 @@ void MSA::AssignAON(Graph& graph) {
       auto& path = graph.shortest_path_(r, s).second;
       if (path.size() > 1) {
         for (int i = 0; i < path.size() - 1; ++i) {
-          graph.target_link_flows_(path[i], path[i + 1]) += d;
+          graph.target_link_flows_.coeffRef(path[i], path[i + 1]) += d;
         }
       }
     }
