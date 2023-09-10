@@ -79,7 +79,9 @@ class SparseMatrix : public Matrix<T> {
 
   // Iterators
   auto begin() { return data_.begin(); }
+  auto begin() const { return data_.begin(); }
   auto end() { return data_.end(); }
+  auto end() const { return data_.end(); }
 
   // Data manipulation
   void Clear() override { data_.clear(); }

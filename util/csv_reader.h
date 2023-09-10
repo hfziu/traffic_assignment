@@ -73,8 +73,8 @@ bool AddLinkFromLine(Graph& g, std::string_view line) {
   auto from = fields[1];
   auto to = fields[2];
   auto capacity = std::stod(std::string(fields[3]));
-  auto length = std::stod(std::string(fields[4]));
-  auto free_speed = std::stod(std::string(fields[5]));
+  auto length = std::stod(std::string(fields[4])) / 1000; //meters to km
+  auto free_speed = std::stod(std::string(fields[5])) * 1.60934; // miles/h to km/h
   auto lanes = std::stoi(std::string(fields[6]));
   auto link_type = std::stoi(std::string(fields[7]));
   // TODO: read BPR parameters from file. 0.5 and 2 are for San Francisco only.
@@ -92,9 +92,29 @@ bool AddDemandFromLine(Graph& g, std::string_view line) {
   }
   auto from = fields[0];
   auto to = fields[1];
-  auto demand = std::stod(std::string(fields[2]));
+  auto demand = std::stod(std::string(fields[2])) * 0.6;
   g.AddDemand(from, to, demand);
   return true;
+}
+
+// write link flow to file
+void WriteLinkFlow(Graph& g, const fs::path& file_path) {
+  std::ofstream file(file_path);
+  // create file if not exist
+  if (!file) {
+    std::ofstream(file_path).close();
+    file.open(file_path);
+  }
+  file << "From_Node_ID,To_Node_ID,Link_Flow,Link_Cost" << "\n";
+  for (auto& from_node : g.GetLinks()) {
+    for (auto& to_node : from_node.second) {
+      file << g.GetNodeName(from_node.first) << "," << g.GetNodeName(to_node.first)
+           << "," << g.GetLinkFlows().coeff(from_node.first, to_node.first)
+           << "," << g.GetLinks().at(from_node.first, to_node.first).TravelTime(
+               g.GetLinkFlows().coeff(from_node.first, to_node.first)) * 60
+           << "\n";
+    }
+  }
 }
 
 }  // namespace road_network::util

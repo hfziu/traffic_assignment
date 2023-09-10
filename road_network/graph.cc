@@ -4,6 +4,7 @@
 
 #include "road_network/graph.h"
 
+#include <string>
 #include <utility>
 
 namespace road_network {
@@ -98,6 +99,11 @@ void Graph::UpdateSingleLinkFlow(const NodeName& from, const NodeName& to,
 void Graph::UpdateLinkCosts() {
   for (auto& from_node : links_) {
     for (auto& link : from_node.second) {
+      if (node_id_reverse_map_[from_node.first].first.length() > 7 ||
+          node_id_reverse_map_[link.first].first.length() > 7) {
+        link_costs_(from_node.first, link.first) = 100000;  // a large number
+        continue;
+      }
       link_costs_(from_node.first, link.first) = link.second.TravelTime(
           link_flows_.coeff(from_node.first, link.first));
     }
@@ -144,6 +150,7 @@ void Graph::UpdateShortestPath(NodeID r) {
 
 void Graph::UpdateShortestPathMany(const NodeSet& r_set) {
   for (auto& r : r_set) {
+//    std::cout << "Updating shortest path from node " << r << " out of " << r_set.size() << " origin nodes."<< std::endl;
     UpdateShortestPath(r);
   }
 }
@@ -152,9 +159,13 @@ double Graph::ComputeAEC() {
   double actual = 0;
   for (auto& from_node : links_) {
     for (auto& link : from_node.second) {
-      actual += link.second.TravelTime(
-                    link_flows_.coeff(from_node.first, link.first)) *
-                link_flows_.coeff(from_node.first, link.first);
+      auto travel_time =
+          node_id_reverse_map_[from_node.first].first.length() > 7 ||
+                  node_id_reverse_map_[link.first].first.length() > 7
+              ? 100000
+              : link.second.TravelTime(
+                    link_flows_.coeff(from_node.first, link.first));
+      actual += travel_time * link_flows_.coeff(from_node.first, link.first);
     }
   }
 

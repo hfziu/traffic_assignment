@@ -61,6 +61,10 @@ class Link {
   // move assignment operator
   Link& operator=(Link&& other) noexcept;
 
+  void SetPerformanceFunction(LinkPerformanceFunction link_performance_function) {
+    link_performance_function_ = std::move(link_performance_function);
+  }
+
   // Travel time
   [[nodiscard]] double TravelTime(double flow) const {
     return link_performance_function_(flow);
@@ -120,9 +124,24 @@ class Graph {
                             double flow);
   void UpdateLinkCosts();
   // DEBUG
-  LinkFlowMatrix& GetLinkFlows() { return link_flows_; }
+  [[nodiscard]] const SparseMatrix<Link>& GetLinks() const { return links_; }
+  [[nodiscard]] const LinkFlowMatrix& GetLinkFlows() const {
+    return link_flows_;
+  }
   void PrintLinks();
   void PrintShortestPath();
+  [[nodiscard]] NodeName GetNodeName(NodeID id) {
+    return node_id_reverse_map_[id].first;
+  }
+  void SetLinkPerformanceFunction(const NodeName& from, const NodeName& to,
+                                  LinkPerformanceFunction f) {
+    links_(node_id_map_[from].first, node_id_map_[to].first)
+        .SetPerformanceFunction(std::move(f));
+  }
+  void SetLinkPerformanceFunction(NodeID from, NodeID to,
+                                  LinkPerformanceFunction f) {
+    links_(from, to).SetPerformanceFunction(std::move(f));
+  }
 
   friend class Assignment;
   friend class MSA;
