@@ -120,6 +120,7 @@ fabric.properties
 # ====
 
 data/
+data_*/
 
 # CMake (VS Code)
 build/

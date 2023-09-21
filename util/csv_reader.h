@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 
 namespace road_network::util {
 
-[[nodiscard]] std::string GetFileContents(const fs::path& filePath) {
+[[nodiscard]] inline std::string GetFileContents(const fs::path& filePath) {
   std::ifstream inFile{filePath, std::ios::in | std::ios::binary};
   if (!inFile)
     throw std::runtime_error("Cannot open " + filePath.filename().string());
@@ -27,7 +27,7 @@ namespace road_network::util {
   return str;
 }
 
-[[nodiscard]] std::vector<std::string_view> SplitString(std::string_view str,
+[[nodiscard]] inline std::vector<std::string_view> SplitString(std::string_view str,
                                                         char delim) {
   std::vector<std::string_view> output;
 
@@ -48,7 +48,7 @@ namespace road_network::util {
   return output;
 }
 
-[[nodiscard]] std::vector<std::string_view> SplitLines(
+[[nodiscard]] inline std::vector<std::string_view> SplitLines(
     std::string_view str, bool skip_header = false) {
   auto lines = SplitString(str, '\n');
   if (skip_header) {
@@ -64,7 +64,7 @@ namespace road_network::util {
   return lines;
 }
 
-bool AddLinkFromLine(Graph& g, std::string_view line) {
+inline bool AddLinkFromLine(Graph& g, std::string_view line) {
   auto fields = SplitString(line, ',');
   if (fields.size() != 8) {
     // Link_ID,From_Node_ID,To_Node_ID,Capacity,Length,Free_Speed,Lanes,Link_Type
@@ -73,8 +73,8 @@ bool AddLinkFromLine(Graph& g, std::string_view line) {
   auto from = fields[1];
   auto to = fields[2];
   auto capacity = std::stod(std::string(fields[3]));
-  auto length = std::stod(std::string(fields[4])) / 1000; //meters to km
-  auto free_speed = std::stod(std::string(fields[5])) * 1.60934; // miles/h to km/h
+  auto length = std::stod(std::string(fields[4])); // km
+  auto free_speed = std::stod(std::string(fields[5])) / 60; // km/h to km/min
   auto lanes = std::stoi(std::string(fields[6]));
   auto link_type = std::stoi(std::string(fields[7]));
   // TODO: read BPR parameters from file. 0.5 and 2 are for San Francisco only.
@@ -83,7 +83,7 @@ bool AddLinkFromLine(Graph& g, std::string_view line) {
   return true;
 }
 
-bool AddDemandFromLine(Graph& g, std::string_view line) {
+inline bool AddDemandFromLine(Graph& g, std::string_view line) {
   auto fields = SplitString(line, ',');
   if (fields.size() != 3) {
     // From_Node_ID,To_Node_ID,Demand
@@ -98,23 +98,41 @@ bool AddDemandFromLine(Graph& g, std::string_view line) {
 }
 
 // write link flow to file
-void WriteLinkFlow(Graph& g, const fs::path& file_path) {
+inline void WriteLinkFlow(Graph& g, const fs::path& file_path) {
   std::ofstream file(file_path);
   // create file if not exist
   if (!file) {
     std::ofstream(file_path).close();
     file.open(file_path);
   }
-  file << "From_Node_ID,To_Node_ID,Link_Flow,Link_Cost" << "\n";
+  file << "From_Node_ID,To_Node_ID,Link_Flow,Link_Cost,VOC" << "\n";
   for (auto& from_node : g.GetLinks()) {
     for (auto& to_node : from_node.second) {
+      auto flow = g.GetLinkFlows().coeff(from_node.first, to_node.first);
+      auto cost = g.GetLinks().at(from_node.first, to_node.first).TravelTime(flow);  // in minutes
+      auto capacity = g.GetLinks().at(from_node.first, to_node.first).GetCapacity();
+      auto voc = flow / capacity;
       file << g.GetNodeName(from_node.first) << "," << g.GetNodeName(to_node.first)
-           << "," << g.GetLinkFlows().coeff(from_node.first, to_node.first)
-           << "," << g.GetLinks().at(from_node.first, to_node.first).TravelTime(
-               g.GetLinkFlows().coeff(from_node.first, to_node.first)) * 60
+           << "," << flow
+           << "," << cost
+           << "," << voc
            << "\n";
     }
   }
+}
+
+inline bool UpdateLinkFlowFromLine(Graph& g, std::string_view line) {
+  auto fields = SplitString(line, ',');
+  if (fields.size() != 5) {
+    // From_Node_ID,To_Node_ID,Link_Flow,Link_Cost,VOC
+    throw std::runtime_error(
+        "Invalid line length for link flow file, should be 3");
+  }
+  auto from = fields[0];
+  auto to = fields[1];
+  auto flow = std::stod(std::string(fields[2]));
+  g.UpdateSingleLinkFlow(from, to, flow);
+  return true;
 }
 
 }  // namespace road_network::util

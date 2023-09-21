@@ -9,6 +9,18 @@
 
 namespace road_network {
 
+Link::Link(NodePtr from, NodePtr to, double capacity, double length,
+           double free_speed, int lanes, int link_type,
+           LinkPerformanceFunction link_performance_function)
+    : from_(std::move(from)),
+      to_(std::move(to)),
+      capacity_(capacity),
+      length_(length),
+      free_speed_(free_speed),
+      lanes_(lanes),
+      link_type_(link_type),
+      link_performance_function_(std::move(link_performance_function)) {}
+
 Link& Link::operator=(const Link& other) {
   if (this != &other) {
     from_ = other.from_;
@@ -45,6 +57,16 @@ Link& Link::operator=(road_network::Link&& other) noexcept {
     link_performance_function_ = std::move(other.link_performance_function_);
   }
   return *this;
+}
+
+Graph::Graph(int n_nodes)
+    : n_nodes_(n_nodes),
+      links_(n_nodes, n_nodes),
+      shortest_path_(n_nodes, n_nodes),
+      link_costs_(n_nodes, n_nodes, std::numeric_limits<double>::max()) {
+  // resize the internal matrices
+  link_flows_.resize(n_nodes, n_nodes);
+  target_link_flows_.resize(n_nodes, n_nodes);
 }
 
 bool Graph::MakeNode(const NodeName& name) {
@@ -99,11 +121,11 @@ void Graph::UpdateSingleLinkFlow(const NodeName& from, const NodeName& to,
 void Graph::UpdateLinkCosts() {
   for (auto& from_node : links_) {
     for (auto& link : from_node.second) {
-      if (node_id_reverse_map_[from_node.first].first.length() > 7 ||
-          node_id_reverse_map_[link.first].first.length() > 7) {
-        link_costs_(from_node.first, link.first) = 100000;  // a large number
-        continue;
-      }
+      // if (node_id_reverse_map_[from_node.first].first.length() > 7 ||
+      //     node_id_reverse_map_[link.first].first.length() > 7) {
+      //   link_costs_(from_node.first, link.first) = 100000;  // a large number
+      //   continue;
+      // }
       link_costs_(from_node.first, link.first) = link.second.TravelTime(
           link_flows_.coeff(from_node.first, link.first));
     }
@@ -150,7 +172,6 @@ void Graph::UpdateShortestPath(NodeID r) {
 
 void Graph::UpdateShortestPathMany(const NodeSet& r_set) {
   for (auto& r : r_set) {
-//    std::cout << "Updating shortest path from node " << r << " out of " << r_set.size() << " origin nodes."<< std::endl;
     UpdateShortestPath(r);
   }
 }
@@ -160,10 +181,10 @@ double Graph::ComputeAEC() {
   for (auto& from_node : links_) {
     for (auto& link : from_node.second) {
       auto travel_time =
-          node_id_reverse_map_[from_node.first].first.length() > 7 ||
-                  node_id_reverse_map_[link.first].first.length() > 7
-              ? 100000
-              : link.second.TravelTime(
+          // node_id_reverse_map_[from_node.first].first.length() > 7 ||
+          //         node_id_reverse_map_[link.first].first.length() > 7
+          //     ? 100000 :
+              link.second.TravelTime(
                     link_flows_.coeff(from_node.first, link.first));
       actual += travel_time * link_flows_.coeff(from_node.first, link.first);
     }

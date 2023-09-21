@@ -42,15 +42,7 @@ class Link {
   ~Link() = default;
   Link(NodePtr from, NodePtr to, double capacity, double length,
        double free_speed, int lanes, int link_type,
-       LinkPerformanceFunction link_performance_function)
-      : from_(std::move(from)),
-        to_(std::move(to)),
-        capacity_(capacity),
-        length_(length),
-        free_speed_(free_speed),
-        lanes_(lanes),
-        link_type_(link_type),
-        link_performance_function_(std::move(link_performance_function)) {}
+       LinkPerformanceFunction link_performance_function);
 
   // copy constructor
   Link(const Link& other) = default;
@@ -61,13 +53,20 @@ class Link {
   // move assignment operator
   Link& operator=(Link&& other) noexcept;
 
-  void SetPerformanceFunction(LinkPerformanceFunction link_performance_function) {
+  void SetPerformanceFunction(
+      LinkPerformanceFunction link_performance_function) {
     link_performance_function_ = std::move(link_performance_function);
   }
+  auto GetPerformanceFunction() const { return link_performance_function_; }
 
   // Travel time
   [[nodiscard]] double TravelTime(double flow) const {
     return link_performance_function_(flow);
+  }
+
+  // read-only functions
+  [[nodiscard]] auto& GetCapacity() const {
+    return capacity_;
   }
 };
 
@@ -78,15 +77,7 @@ class Graph {
   // That is, the caller must specify the maximum number of nodes when creating
   // the graph.
   // TODO: support dynamic graph.
-  explicit Graph(int n_nodes)
-      : n_nodes_(n_nodes),
-        links_(n_nodes, n_nodes),
-        shortest_path_(n_nodes, n_nodes),
-        link_costs_(n_nodes, n_nodes, std::numeric_limits<double>::max()) {
-    // resize the internal matrices
-    link_flows_.resize(n_nodes, n_nodes);
-    target_link_flows_.resize(n_nodes, n_nodes);
-  }
+  explicit Graph(int n_nodes);
   ~Graph() = default;
 
   // Currently, a Graph object is not copyable or movable.
@@ -102,12 +93,15 @@ class Graph {
 
   bool AddDemand(const NodeName& from, const NodeName& to, double demand);
 
-  // Get a Node pointer by node name.
-  std::shared_ptr<Node> GetNode(const NodeName& name) {
-    return node_id_map_[name].second;
-  }
+  // update the shortest path matrix for origin node r using Dijkstra's
+  // algorithm
+  // TODO: these functions should be private
+  void UpdateSingleLinkFlow(const NodeName& from, const NodeName& to,
+                            double flow);
+  void UpdateLinkCosts();
 
-  // Get a Link pointer by node names.
+  // Read-only functions
+  // Get a link pointer by node names.
   const Link& GetLink(const NodeName& from, const NodeName& to) {
     return links_.at(node_id_map_[from].first, node_id_map_[to].first);
   }
@@ -115,15 +109,6 @@ class Graph {
   double GetDemand(const NodeName& from, const NodeName& to) {
     return demands_[node_id_map_[from].first][node_id_map_[to].first];
   }
-
- public:
-  // update the shortest path matrix for origin node r using Dijkstra's
-  // algorithm
-  // TODO: these functions should be private
-  void UpdateSingleLinkFlow(const NodeName& from, const NodeName& to,
-                            double flow);
-  void UpdateLinkCosts();
-  // DEBUG
   [[nodiscard]] const SparseMatrix<Link>& GetLinks() const { return links_; }
   [[nodiscard]] const LinkFlowMatrix& GetLinkFlows() const {
     return link_flows_;
@@ -133,21 +118,31 @@ class Graph {
   [[nodiscard]] NodeName GetNodeName(NodeID id) {
     return node_id_reverse_map_[id].first;
   }
+
+  // Update Graph properties
+  // Set link performance function by node names.
   void SetLinkPerformanceFunction(const NodeName& from, const NodeName& to,
                                   LinkPerformanceFunction f) {
     links_(node_id_map_[from].first, node_id_map_[to].first)
         .SetPerformanceFunction(std::move(f));
   }
+  // Set link performance function by node IDs.
   void SetLinkPerformanceFunction(NodeID from, NodeID to,
                                   LinkPerformanceFunction f) {
     links_(from, to).SetPerformanceFunction(std::move(f));
   }
 
+  void UpdateShortestPath(NodeID r);
+  void UpdateShortestPathMany(const NodeSet& r_set);
+  double ComputeAEC();
+
+  // Allow traffic assignment classess to access private members.
   friend class Assignment;
   friend class MSA;
 
  private:
-  // returns true if the node is successfully created or already exists.
+  // Interal helper functions
+  // returns true if the node is successfully created OR already exists.
   [[nodiscard]] bool MakeNode(const NodeName& name);
 
   // returns true if the link is successfully created.
@@ -155,12 +150,6 @@ class Graph {
                        double length, double free_speed, int lanes,
                        int link_type, LinkPerformanceFunction f);
 
- public:
-  void UpdateShortestPath(NodeID r);
-  void UpdateShortestPathMany(const NodeSet& r_set);
-  double ComputeAEC();
-
- private:
   // Each node is allowed to have a name of string type.
   // When a node is created, it is assigned an internal integer ID.
   std::unordered_map<NodeName, std::pair<NodeID, NodePtr>> node_id_map_{};

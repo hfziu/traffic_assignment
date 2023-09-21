@@ -6,6 +6,7 @@
 #define TRAFFIC_ASSIGNMENT_ROAD_NETWORK_FORMAT_H_
 
 #include <functional>
+#include <memory>
 #include <set>
 
 #include <Eigen/Sparse>

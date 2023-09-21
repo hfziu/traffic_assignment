@@ -6,6 +6,7 @@
 #define TRAFFIC_ASSIGNMENT_ROAD_NETWORK_MATRIX_H_
 
 #include <map>
+#include <stdexcept>
 
 namespace road_network {
 
